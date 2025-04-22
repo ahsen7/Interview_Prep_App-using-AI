@@ -1,6 +1,7 @@
 'use client'
 
 import { interviewer } from '@/constants';
+import { generateFeedback } from '@/lib/actions/general.action';
 import { cn } from '@/lib/utils';
 import { vapi } from '@/lib/vapi.sdk';
 import Image from 'next/image'
@@ -67,12 +68,12 @@ const Agent = ({ userName, userId, type, interviewId, questions }: AgentProps) =
 
 
     const handleGenerateFeedback = async (messages: SavedMessage[]) => {
+        const { success, feedbackId: id } = await generateFeedback({
+            interviewId: interviewId!,
+            userId: userId!,
+            transcript: messages
+        })
         console.log('Generate feedback here.');
-
-        const { success, id } = {
-            success: true,
-            id: 'feedback-id'
-        }
 
         if (success && id) {
             router.push(`/interview/${interviewId}/feedback`)
@@ -84,11 +85,7 @@ const Agent = ({ userName, userId, type, interviewId, questions }: AgentProps) =
 
     useEffect(() => {
         if (callStatus === CallStatus.FINISHED) {
-            if (type === 'generate') {
-                router.push('/')
-            } else {
-                handleGenerateFeedback(messages);
-            }
+            handleGenerateFeedback(messages);
         }
     }, [messages, callStatus, type, userId, router]);
 
@@ -174,7 +171,7 @@ const Agent = ({ userName, userId, type, interviewId, questions }: AgentProps) =
                         <span className={cn('absolute animate-ping rounded-full opacity-75', callStatus !== 'CONNECTING' && 'hidden')} />
 
                         <span>
-                            {isCallInactiveOrFinished ? 'Call' : '. . .'}
+                            {isCallInactiveOrFinished ? 'Start' : '. . .'}
                         </span>
                     </button>
                 ) : (
