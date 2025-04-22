@@ -1,5 +1,6 @@
 'use client'
 
+import { interviewer } from '@/constants';
 import { cn } from '@/lib/utils';
 import { vapi } from '@/lib/vapi.sdk';
 import Image from 'next/image'
@@ -20,12 +21,12 @@ interface SavedMessage {
 }
 
 
-const Agent = ({ userName, userId, type }: AgentProps) => {
+const Agent = ({ userName, userId, type, interviewId, questions }: AgentProps) => {
 
     const router = useRouter();
     const [isSpeaking, setisSpeaking] = useState(false);
     const [callStatus, setCallStatus] = useState<CallStatus>(CallStatus.INACTIVE);
-    const [message, setMessage] = useState<SavedMessage[]>([]);
+    const [messages, setMessage] = useState<SavedMessage[]>([]);
 
     useEffect(() => {
 
@@ -64,20 +65,59 @@ const Agent = ({ userName, userId, type }: AgentProps) => {
 
     }, [])
 
+
+    const handleGenerateFeedback = async (messages: SavedMessage[]) => {
+        console.log('Generate feedback here.');
+
+        const { success, id } = {
+            success: true,
+            id: 'feedback-id'
+        }
+
+        if (success && id) {
+            router.push(`/interview/${interviewId}/feedback`)
+        } else {
+            console.log('Error saving feedback.');
+            router.push('/')
+        }
+    }
+
     useEffect(() => {
-        if (callStatus === CallStatus.FINISHED) router.push('/');
-    }, [message, callStatus, type, userId]);
+        if (callStatus === CallStatus.FINISHED) {
+            if (type === 'generate') {
+                router.push('/')
+            } else {
+                handleGenerateFeedback(messages);
+            }
+        }
+    }, [messages, callStatus, type, userId, router]);
 
     const handleCall = async () => {
 
         setCallStatus(CallStatus.CONNECTING);
 
-        await vapi.start(process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID!, {
-            variableValues: {
-                username: userName,
-                userid: userId
+        if (type === 'generate') {
+
+            await vapi.start(process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID!, {
+                variableValues: {
+                    username: userName,
+                    userid: userId
+                }
+            })
+        } else {
+            let formattedQuestions = '';
+
+            if (questions) {
+                formattedQuestions = questions
+                    .map((questions) => `-${questions}`)
+                    .join('\n');
             }
-        })
+            await vapi.start(interviewer, {
+                variableValues: {
+                    questions: formattedQuestions
+                }
+            })
+        }
     }
 
     const handleDisconnect = async () => {
@@ -86,7 +126,7 @@ const Agent = ({ userName, userId, type }: AgentProps) => {
         vapi.start();
     }
 
-    const lastMessage = message[message.length - 1]?.content;
+    const lastMessage = messages[messages.length - 1]?.content;
     const isCallInactiveOrFinished = callStatus === CallStatus.INACTIVE || callStatus === CallStatus.FINISHED;
 
     return (
@@ -119,7 +159,7 @@ const Agent = ({ userName, userId, type }: AgentProps) => {
                     </div>
                 </div>
             </div>
-            {message.length > 0 && (
+            {messages.length > 0 && (
                 <div className='transcript-border'>
                     <div className='transcript'>
                         <p className={cn('transition-opacity duration-500 opacity-0', 'animate-fadeIn opacity-100')} key={lastMessage}>
@@ -131,7 +171,7 @@ const Agent = ({ userName, userId, type }: AgentProps) => {
             <div className="w-full flex justify-center">
                 {callStatus !== 'ACTIVE' ? (
                     <button className='relative btn-call' onClick={handleCall}>
-                        <span className={cn('absolute animate-ping rounded-full opacity-75', callStatus !== 'CONNECTING' & 'hidden')} />
+                        <span className={cn('absolute animate-ping rounded-full opacity-75', callStatus !== 'CONNECTING' && 'hidden')} />
 
                         <span>
                             {isCallInactiveOrFinished ? 'Call' : '. . .'}
